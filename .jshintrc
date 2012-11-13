@@ -1,0 +1,12 @@
+{
+	"predef": [
+		"pc"
+	],
+	"smarttabs": true,
+	"trailing": true,
+	"eqeqeq": true,
+	"immed": true,
+	"devel": true,
+	"browser": true,
+	"undef": true
+}

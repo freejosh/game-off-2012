@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Untitled</title>
+		<style>
+			body {
+				background-color: #000;
+			}
+			#container {
+				position: absolute;
+				left: 0;
+				top: 0;
+				width: 100%;
+				height: 100%;
+				padding: 0;
+				margin: 0;
+			}
+			#game-container {
+				height: 80%;
+			}
+			#debug-container {
+				height: 20%;
+			}
+		</style>
+		<!-- Production: --><!--<script type="text/javascript" src="/playcraftjs/dist/playcraft-0.5.11.min.js"></script>-->
+		<!-- Development: --><script type="text/javascript" src="/playcraftjs/lib/playcraft.js"></script>
+		<script>
+			pc.start('pcGameCanvas', 'TheGame', 'js/', ['game.js']);
+		</script>
+	</head>
+	<body>
+		<div id="container">
+			<div id="game-container">
+				<canvas id="pcGameCanvas"></canvas>
+			</div>
+			<div id="debug-container">
+				<canvas id="pcDebug"></canvas>
+			</div>
+		</div>
+	</body>
+</html>
