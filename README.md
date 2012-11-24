@@ -1,1 +1,1 @@
-Built with [Playcraft 0.5.4](http://playcraftlabs.com/) (engine not included in repository). To run locally clone the repository into Playcraft's `projects` folder.
+Built with [Playcraft 0.5.5](http://playcraftlabs.com/) (engine not included in repository). To run locally clone the repository into Playcraft's `projects` folder.
