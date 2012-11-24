@@ -44,6 +44,8 @@ var GameScene = pc.Scene.extend('GameScene',
 
 			this.loadFromTMX(pc.device.loader.get('level1').resource, this.entityFactory);
 
+
+
 			this.boundLayer = this.get('boundaries');
 			this.boundLayer.setZIndex(0);
 
@@ -64,13 +66,15 @@ var GameScene = pc.Scene.extend('GameScene',
 			}));
 			this.gameLayer.addSystem(new PlayerControlSystem());
 
+			this.playerToFollow = this.gameLayer.entityManager.getTagged('player').first.object();
+
 			this.boundLayer.setOriginTrack(this.gameLayer);
 			this.backgroundLayer.setOriginTrack(this.gameLayer);
 		},
 
 		process: function() {
 
-			var playerCenter = this.gameLayer.entityManager.getTagged('player').first.object().getComponent('spatial').getCenterPos();
+			var playerCenter = this.playerToFollow.getComponent('spatial').getCenterPos();
 			var viewport = this.viewPort;
 			this.gameLayer.setOrigin(playerCenter.x - viewport.w / 2, playerCenter.y - viewport.h / 2);
 			
@@ -120,9 +124,6 @@ var Clonable = pc.components.Component('clonable',
 			
 			var entity2 = entity.layer.scene.entityFactory.createEntity(entity.layer, 'player', position.x, position.y);
 			var clonable2 = entity2.getComponent('clonable');
-
-			var input2 = entity2.getComponent('input');
-			console.log(input2);
 			
 			clonable[stat]--;
 			clonable2[stat]++;
@@ -178,18 +179,24 @@ var EntityFactory = pc.EntityFactory.extend('EntityFactory',
 					collisionMask: CollisionType.WALL
 				}));
 
-				e.addComponent(pc.components.Input.create({
-					states:[
-						['running right', ['D', 'RIGHT']],
-						['running left', ['A', 'LEFT']],
-						['jumping', ['W', 'UP']]
-					],
+				if (layer.entityManager.getTagged('player').length() === 1) {
 
-					actions: [
-						['clone', ['C']],
-						['control', ['R']]
-					]
-				}));
+					e.addComponent(pc.components.Input.create({
+						states:[
+							['running right', ['D', 'RIGHT']],
+							['running left', ['A', 'LEFT']],
+							['jumping', ['W', 'UP']]
+						],
+
+						actions: [
+							['clone', ['C']],
+							['control', ['R']]
+						],
+
+						target: e
+					}));
+
+				}
 
 				e.addComponent(Clonable.create());
 			}
@@ -206,9 +213,10 @@ var PlayerControlSystem = pc.systems.Input.extend('PlayerControlSystem',
 		process: function(entity) {
 			this._super(entity);
 
-			var physics = entity.getComponent('physics');
-			var sprite = entity.getComponent('sprite').sprite;
-			var stats = entity.getComponent('clonable');
+			var target = entity.getComponent('input').target;
+			var physics = target.getComponent('physics');
+			var sprite = target.getComponent('sprite').sprite;
+			var stats = target.getComponent('clonable');
 
 			if (this.isInputState(entity, 'running right')) {
 				physics.applyImpulse(1 * stats.speed, 0);
@@ -228,7 +236,11 @@ var PlayerControlSystem = pc.systems.Input.extend('PlayerControlSystem',
 
 		onAction: function(action) {
 			
-			var player = this.layer.entityManager.getTagged('player').first.object();
+			var playerList = this.layer.entityManager.getTagged('player');
+			// input only added to first player entity
+			var input = playerList.first.object().getComponent('input');
+			// get currently controlled player
+			var player = input.target;
 			
 			if (action === 'clone') {
 				var clonable = player.getComponent('clonable');
@@ -237,10 +249,18 @@ var PlayerControlSystem = pc.systems.Input.extend('PlayerControlSystem',
 
 				// TODO: call with chosen stat
 				clonable.clone('jump');
+				return;
 			}
 
+
+			var playerNode, nextPlayer;
 			if (action === 'control') {
-				//var input = player.getComponent('');
+				// move control target to next player
+				playerNode = playerList.getNode(player);
+				nextPlayer = playerNode.next();
+				if (!nextPlayer) nextPlayer = playerList.first;
+				input.target = nextPlayer.object();
+				player.layer.scene.playerToFollow = input.target;
 			}
 		}
 	}
