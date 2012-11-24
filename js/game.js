@@ -34,6 +34,10 @@ var TheGame = pc.Game.extend('TheGame',
 	}
 );
 
+var PhysicsConst = {
+	GRAVITY: 70
+};
+
 var GameScene = pc.Scene.extend('GameScene',
 	{},
 	{
@@ -43,8 +47,6 @@ var GameScene = pc.Scene.extend('GameScene',
 			this.entityFactory = new EntityFactory();
 
 			this.loadFromTMX(pc.device.loader.get('level1').resource, this.entityFactory);
-
-
 
 			this.boundLayer = this.get('boundaries');
 			this.boundLayer.setZIndex(0);
@@ -56,7 +58,7 @@ var GameScene = pc.Scene.extend('GameScene',
 			this.gameLayer.setZIndex(2);
 			this.gameLayer.addSystem(new pc.systems.Render());
 			this.gameLayer.addSystem(new GamePhysics({
-				gravity: { x: 0, y: 70 },
+				gravity: { x: 0, y: PhysicsConst.GRAVITY },
 				debug: pc.device.devMode,
 				tileCollisionMap: {
 					tileMap: this.boundLayer.tileMap,
@@ -93,12 +95,15 @@ var Clonable = pc.components.Component('clonable',
 		}
 	},
 	{
-		speed: 2,
-		jump: 2,
+		DEVIATION_LIMIT: 1,
+		defaults: {
+			speed: 2,
+			jump: 2
+		},
 
-		init: function(stats) {
+		init: function() {
 			this._super(this.Class.shortName);
-			this.config(stats);
+			this.config(this.defaults);
 		},
 
 		config: function(stats) {
@@ -117,7 +122,7 @@ var Clonable = pc.components.Component('clonable',
 			var entity = this.getEntity();
 			var clonable = entity.getComponent('clonable');
 
-			if (clonable[stat] <= 1) return;
+			if (Math.abs(clonable[stat] - this.defaults[stat]) >= this.DEVIATION_LIMIT) return;
 
 			var spatial = entity.getComponent('spatial');
 			var position = spatial.getPos();
@@ -170,7 +175,7 @@ var EntityFactory = pc.EntityFactory.extend('EntityFactory',
 				}));
 
 				e.addComponent(pc.components.Physics.create({
-					maxSpeed: { x: 24, y: 150 },
+					maxSpeed: { x: 24, y: 999 },
 					friction: 1,
 					fixedRotation: true,
 					bounce: 0,
@@ -229,7 +234,7 @@ var PlayerControlSystem = pc.systems.Input.extend('PlayerControlSystem',
 			}
 
 			if (this.isInputState(entity, 'jumping') && physics.onGround && physics.getLinearVelocity().y === 0) {
-				physics.applyImpulse(10 * stats.jump, 270);
+				physics.applyImpulse(PhysicsConst.GRAVITY * stats.jump / 16, 270);
 				physics.onGround = false;
 			}
 		},
@@ -242,8 +247,9 @@ var PlayerControlSystem = pc.systems.Input.extend('PlayerControlSystem',
 			// get currently controlled player
 			var player = input.target;
 			
+			var clonable;
 			if (action === 'clone') {
-				var clonable = player.getComponent('clonable');
+				clonable = player.getComponent('clonable');
 
 				// TODO: show stats chooser
 
@@ -251,7 +257,6 @@ var PlayerControlSystem = pc.systems.Input.extend('PlayerControlSystem',
 				clonable.clone('jump');
 				return;
 			}
-
 
 			var playerNode, nextPlayer;
 			if (action === 'control') {
@@ -261,6 +266,7 @@ var PlayerControlSystem = pc.systems.Input.extend('PlayerControlSystem',
 				if (!nextPlayer) nextPlayer = playerList.first;
 				input.target = nextPlayer.object();
 				player.layer.scene.playerToFollow = input.target;
+				return;
 			}
 		}
 	}
