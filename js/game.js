@@ -21,7 +21,7 @@ var TheGame = pc.Game.extend('TheGame',
 			ctx.clearRect(0,0,pc.device.canvasWidth, pc.device.canvasHeight);
 			ctx.font = "normal 50px Times";
 			ctx.fillStyle = "#bbb";
-			ctx.fillText('Scrollia', 40, (pc.device.canvasHeight / 2)-50);
+			ctx.fillText('Game Off', 40, (pc.device.canvasHeight / 2)-50);
 			ctx.font = "normal 14px Verdana";
 			ctx.fillStyle = "#000";
 			ctx.fillText('Loading: ' + percentageComplete + '%', 40, pc.device.canvasHeight/2);
@@ -63,11 +63,69 @@ var GameScene = pc.Scene.extend('GameScene',
 				}
 			}));
 			this.gameLayer.addSystem(new PlayerControlSystem());
+
+			this.boundLayer.setOriginTrack(this.gameLayer);
+			this.backgroundLayer.setOriginTrack(this.gameLayer);
 		},
 
 		process: function() {
+
+			var playerCenter = this.gameLayer.entityManager.getTagged('player').first.object().getComponent('spatial').getCenterPos();
+			var viewport = this.viewPort;
+			this.gameLayer.setOrigin(playerCenter.x - viewport.w / 2, playerCenter.y - viewport.h / 2);
+			
 			pc.device.ctx.clearRect(0, 0, pc.device.canvasWidth, pc.device.canvasHeight);
 			this._super();
+		}
+	}
+);
+
+var Clonable = pc.components.Component('clonable',
+	{
+		create: function(stats) {
+			var component = this._super();
+			component.config(stats);
+			return component;
+		}
+	},
+	{
+		speed: 2,
+		jump: 2,
+
+		init: function(stats) {
+			this._super(this.Class.shortName);
+			this.config(stats);
+		},
+
+		config: function(stats) {
+			if (!stats) return;
+			this.speed = stats.speed;
+			this.jump = stats.jump;
+		},
+
+		/**
+		 * Creates a clone of the entity, increasing the chosen stat on the
+		 * cloned entity, and decreasing it on the original.
+		 *
+		 * @param String stat The stat to increase by 1.
+		 */
+		clone: function(stat) {
+			var entity = this.getEntity();
+			var clonable = entity.getComponent('clonable');
+
+			if (clonable[stat] <= 1) return;
+
+			var spatial = entity.getComponent('spatial');
+			var position = spatial.getPos();
+			
+			var entity2 = entity.layer.scene.entityFactory.createEntity(entity.layer, 'player', position.x, position.y);
+			var clonable2 = entity2.getComponent('clonable');
+
+			var input2 = entity2.getComponent('input');
+			console.log(input2);
+			
+			clonable[stat]--;
+			clonable2[stat]++;
 		}
 	}
 );
@@ -96,6 +154,7 @@ var EntityFactory = pc.EntityFactory.extend('EntityFactory',
 			if (type === 'player') {
 				
 				e = pc.Entity.create(layer);
+				e.addTag('player');
 
 				e.addComponent(pc.components.Sprite.create({
 					spriteSheet: this.playerSheet,
@@ -124,8 +183,15 @@ var EntityFactory = pc.EntityFactory.extend('EntityFactory',
 						['running right', ['D', 'RIGHT']],
 						['running left', ['A', 'LEFT']],
 						['jumping', ['W', 'UP']]
+					],
+
+					actions: [
+						['clone', ['C']],
+						['control', ['R']]
 					]
 				}));
+
+				e.addComponent(Clonable.create());
 			}
 
 			return e;
@@ -136,20 +202,45 @@ var EntityFactory = pc.EntityFactory.extend('EntityFactory',
 var PlayerControlSystem = pc.systems.Input.extend('PlayerControlSystem',
 	{},
 	{
+
 		process: function(entity) {
 			this._super(entity);
 
 			var physics = entity.getComponent('physics');
 			var sprite = entity.getComponent('sprite').sprite;
+			var stats = entity.getComponent('clonable');
 
 			if (this.isInputState(entity, 'running right')) {
-				physics.applyImpulse(1, 0);
+				physics.applyImpulse(1 * stats.speed, 0);
 				if (sprite.currentAnimName !== 'running right') sprite.setAnimation('running right');
 			}
 
 			if (this.isInputState(entity, 'running left')) {
-				physics.applyImpulse(1, 180);
+				physics.applyImpulse(1 * stats.speed, 180);
 				if (sprite.currentAnimName !== 'running left') sprite.setAnimation('running left');
+			}
+
+			if (this.isInputState(entity, 'jumping') && physics.onGround && physics.getLinearVelocity().y === 0) {
+				physics.applyImpulse(10 * stats.jump, 270);
+				physics.onGround = false;
+			}
+		},
+
+		onAction: function(action) {
+			
+			var player = this.layer.entityManager.getTagged('player').first.object();
+			
+			if (action === 'clone') {
+				var clonable = player.getComponent('clonable');
+
+				// TODO: show stats chooser
+
+				// TODO: call with chosen stat
+				clonable.clone('jump');
+			}
+
+			if (action === 'control') {
+				//var input = player.getComponent('');
 			}
 		}
 	}
@@ -164,6 +255,16 @@ var CollisionType = {
 var GamePhysics = pc.systems.Physics.extend('GamePhysics',
 	{},
 	{
+		onCollisionStart: function(aType, bType, entityA, entityB, fixtureAType, fixtureBType) {
 
+			// player hitting ground
+			var entity;
+			if (aType === pc.BodyType.TILE) entity = entityB;
+			else if (bType === pc.BodyType.TILE) entity = entityA;
+			
+			if (entity.hasTag('player')) {
+				entity.getComponent('physics').onGround = true;
+			}
+		}
 	}
 );
