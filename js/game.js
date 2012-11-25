@@ -34,6 +34,19 @@ var TheGame = pc.Game.extend('TheGame',
 	}
 );
 
+var UIInputSystem = pc.systems.Input.extend('UIInputSystem',
+	{},
+	{
+		onAction: function(action) {
+			if (Clonable.prototype.defaults.hasOwnProperty(action) && this.clickedButton) {
+				this.clickedButton(action);
+			}
+		},
+
+		clickedButton: null// to be filled when ui layer is set active
+	}
+);
+
 var PhysicsConst = {
 	GRAVITY: 70
 };
@@ -72,6 +85,33 @@ var GameScene = pc.Scene.extend('GameScene',
 
 			this.boundLayer.setOriginTrack(this.gameLayer);
 			this.backgroundLayer.setOriginTrack(this.gameLayer);
+
+			this.uiLayer = new pc.EntityLayer('ui');
+			this.addLayer(this.uiLayer);
+			this.uiLayer.setZIndex(3);
+			this.uiLayer.addSystem(new pc.systems.Render());
+			this.uiLayer.addSystem(new UIInputSystem());
+
+			var stat;
+			var clonableDefaults = Clonable.prototype.defaults;
+			var i = 1;
+			for (stat in clonableDefaults) {
+				if (clonableDefaults.hasOwnProperty(stat)) {
+					var e = pc.Entity.create(this.uiLayer);
+					e.addComponent(pc.components.Rect.create({ color:'#000000', lineColor:'#ffffff', lineWidth:3 }));
+					e.addComponent(pc.components.Text.create({ text:[stat], lineWidth:0, fontHeight:14 }));
+					e.addComponent(pc.components.Spatial.create({ dir:0, w:200, h:100, x: 0, y: i * 100 }));
+					e.addComponent(pc.components.Layout.create({ vertical:'middle', horizontal:'center' }));
+					e.addComponent(pc.components.Input.create({
+						actions: [
+							[ stat, [ 'MOUSE_LEFT_BUTTON' ], true]
+						]
+					}));
+					i++;
+				}
+			}
+
+			this.uiLayer.setInactive();
 		},
 
 		process: function() {
@@ -247,14 +287,20 @@ var PlayerControlSystem = pc.systems.Input.extend('PlayerControlSystem',
 			// get currently controlled player
 			var player = input.target;
 			
-			var clonable;
+			var clonable, scene, uiLayer;
 			if (action === 'clone') {
 				clonable = player.getComponent('clonable');
 
-				// TODO: show stats chooser
+				scene = player.layer.scene;
+				uiLayer = scene.get('ui');
+				scene.pause();
+				uiLayer.setActive();
 
-				// TODO: call with chosen stat
-				clonable.clone('jump');
+				uiLayer.systemManager.getByComponentType('input').first.object().clickedButton = function(action) {
+					clonable.clone(action);
+					uiLayer.setInactive();
+					scene.resume();
+				};
 				return;
 			}
 
@@ -281,7 +327,7 @@ var CollisionType = {
 var GamePhysics = pc.systems.Physics.extend('GamePhysics',
 	{},
 	{
-		onCollisionStart: function(aType, bType, entityA, entityB, fixtureAType, fixtureBType) {
+		onCollisionStart: function(aType, bType, entityA, entityB) {
 
 			// player hitting ground
 			var entity;
